@@ -1,0 +1,350 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+<title></title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="stylesheet"
+href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+background:#eef2f7;
+font-family:Arial;
+}
+
+.sidebar{
+height:100vh;
+background:#1f2d3d;
+color:white;
+padding:20px;
+position:fixed;
+width:220px;
+}
+
+.sidebar h3{
+text-align:center;
+margin-bottom:30px;
+}
+
+.sidebar a{
+display:block;
+color:white;
+padding:10px;
+text-decoration:none;
+margin-bottom:10px;
+border-radius:6px;
+}
+
+.sidebar a:hover{
+background:#2f4055;
+}
+
+.main{
+margin-left:240px;
+padding:20px;
+}
+
+.card{
+border-radius:12px;
+box-shadow:0 5px 15px rgba(0,0,0,0.1);
+}
+
+.result-box{
+background:#f8f9ff;
+padding:15px;
+border-radius:8px;
+}
+
+.chat-box{
+height:250px;
+overflow-y:auto;
+background:#fafafa;
+border:1px solid #ddd;
+padding:10px;
+border-radius:8px;
+}
+
+.health-score{
+font-size:40px;
+font-weight:bold;
+color:#2b7cff;
+}
+
+.loader{
+display:none;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="sidebar">
+
+<h3>AI Health</h3>
+
+<a href="#"><i class="fa fa-dashboard"></i> Dashboard</a>
+<a href="#"><i class="fa fa-file"></i> Reports</a>
+<a href="#"><i class="fa fa-heart"></i> Health</a>
+<a href="#"><i class="fa fa-comments"></i> Chatbot</a>
+
+</div>
+
+<div class="main">
+
+<h2 class="mb-4">AI Medical Report Analyzer</h2>
+
+<div class="row">
+
+<div class="col-md-6">
+
+<div class="card p-4">
+
+<h4><i class="fa fa-upload"></i> Upload Medical Report</h4>
+
+<input type="file" id="reportFile" class="form-control">
+
+<br>
+
+<select id="language" class="form-select">
+
+<option>English</option>
+<option>Tamil</option>
+<option>Hindi</option>
+
+</select>
+
+<br>
+
+<button class="btn btn-primary w-100"
+onclick="analyzeReport()">
+
+Analyze Report
+
+</button>
+
+<div class="loader text-center mt-3" id="loader">
+
+<div class="spinner-border text-primary"></div>
+
+<p>Analyzing report...</p>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="col-md-6">
+
+<div class="card p-4 text-center">
+
+<h4>Health Score</h4>
+
+<div class="health-score" id="healthScore">
+--
+</div>
+
+<canvas id="healthChart"></canvas>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- RESULT + DOCTOR SECTION -->
+
+<div class="row mt-4">
+
+<div class="col-md-6">
+
+<div class="card p-4">
+
+<h4>Analysis Results</h4>
+
+<div class="result-box" id="analysisResult">
+Upload a report to see results
+</div>
+
+</div>
+
+</div>
+
+<div class="col-md-6">
+
+<div class="card p-4">
+
+<h4><i class="fa fa-user-md"></i> Recommended Doctor</h4>
+
+<div class="result-box" id="doctorResult">
+Doctor recommendation will appear here after analysis
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- CHATBOT -->
+
+<div class="row mt-4">
+
+<div class="col-md-6">
+
+<div class="card p-4">
+
+<h4>Medical Chatbot</h4>
+
+<div class="chat-box" id="chatBox"></div>
+
+<input type="text"
+class="form-control mt-3"
+id="chatInput"
+placeholder="Ask a medical question">
+
+<button class="btn btn-success mt-2 w-100"
+onclick="sendMessage()">
+Ask
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+let chart;
+
+function analyzeReport(){
+
+let fileInput=document.getElementById("reportFile");
+
+if(fileInput.files.length===0){
+
+alert("Upload report first");
+return;
+
+}
+
+let formData=new FormData();
+formData.append("report",fileInput.files[0]);
+
+document.getElementById("loader").style.display="block";
+
+fetch("/analyze",{
+method:"POST",
+body:formData
+})
+
+.then(res=>res.json())
+
+.then(data=>{
+
+document.getElementById("loader").style.display="none";
+
+let output="";
+let doctorHTML="";
+
+data.results.forEach(r=>{
+
+output+=`
+<b>${r.test}</b>: ${r.value}<br>
+Status: ${r.status}<br><br>
+`;
+
+doctorHTML=`
+<b>Doctor:</b> ${r.doctor}<br>
+<b>Hospital:</b> ${r.hospital}<br>
+<b>Location:</b> ${r.location}<br>
+
+<a target="_blank"
+class="btn btn-primary mt-2"
+href="https://www.google.com/maps/search/${r.hospital}">
+View on Map
+</a>
+`;
+
+});
+
+document.getElementById("analysisResult").innerHTML=output;
+
+document.getElementById("doctorResult").innerHTML=doctorHTML;
+
+document.getElementById("healthScore").innerText=data.health_score;
+
+drawChart(data.health_score);
+
+});
+
+}
+
+function drawChart(score){
+
+let ctx=document.getElementById("healthChart");
+
+if(chart) chart.destroy();
+
+chart=new Chart(ctx,{
+type:"doughnut",
+data:{
+labels:["Health Score","Risk"],
+datasets:[{
+data:[score,100-score],
+backgroundColor:["#2b7cff","#ff4d4d"]
+}]
+}
+});
+
+}
+
+function sendMessage(){
+
+let message=document.getElementById("chatInput").value;
+
+let chatBox=document.getElementById("chatBox");
+
+chatBox.innerHTML+=`<p><b>You:</b> ${message}</p>`;
+
+fetch("/chat",{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({question:message})
+})
+
+.then(res=>res.json())
+
+.then(data=>{
+chatBox.innerHTML+=`<p style="color:green"><b>Bot:</b> ${data.answer}</p>`;
+chatBox.scrollTop=chatBox.scrollHeight;
+});
+
+document.getElementById("chatInput").value="";
+
+}
+
+</script>
+
+</body>
+</html>
+```
